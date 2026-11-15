@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">Tasks</h1>
+                <div class="header-stats">
+                    <div class="stat">
+                        <span class="stat-label">Total</span>
+                        <span class="stat-value" id="totalTasks">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Completed</span>
+                        <span class="stat-value" id="completedTasks">0</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Input Section -->
+        <section class="input-section">
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    class="task-input" 
+                    id="taskInput" 
+                    placeholder="Add a new task..."
+                    aria-label="New task input"
+                >
+                <button class="btn btn-primary" id="addBtn" aria-label="Add task">
+                    <span class="btn-icon">+</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Search and Filter Section -->
+        <section class="controls-section">
+            <div class="search-group">
+                <input 
+                    type="text" 
+                    class="search-input" 
+                    id="searchInput" 
+                    placeholder="Search tasks..."
+                    aria-label="Search tasks"
+                >
+                <span class="search-icon">🔍</span>
+            </div>
+
+            <div class="filter-group">
+                <button class="filter-btn active" data-filter="all" aria-label="Show all tasks">All</button>
+                <button class="filter-btn" data-filter="active" aria-label="Show active tasks">Active</button>
+                <button class="filter-btn" data-filter="completed" aria-label="Show completed tasks">Completed</button>
+            </div>
+        </section>
+
+        <!-- Tasks List -->
+        <section class="tasks-section">
+            <ul class="tasks-list" id="tasksList">
+                <!-- Tasks will be rendered here -->
+            </ul>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="emptyState">
+                <div class="empty-icon">📝</div>
+                <h2 class="empty-title">No tasks yet</h2>
+                <p class="empty-text">Add a new task to get started</p>
+            </div>
+
+            <!-- No Results State -->
+            <div class="empty-state hidden" id="noResults">
+                <div class="empty-icon">🔍</div>
+                <h2 class="empty-title">No tasks found</h2>
+                <p class="empty-text">Try adjusting your search or filter</p>
+            </div>
+        </section>
+
+        <!-- Clear Completed Button -->
+        <section class="actions-section" id="actionsSection">
+            <button class="btn btn-secondary" id="clearCompletedBtn" aria-label="Clear all completed tasks">
+                Clear completed
+            </button>
+        </section>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal hidden" id="editModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit task</h2>
+                <button class="modal-close" id="closeModal" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input 
+                    type="text" 
+                    class="modal-input" 
+                    id="editInput" 
+                    placeholder="Edit your task..."
+                    aria-label="Edit task"
+                >
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelEditBtn">Cancel</button>
+                <button class="btn btn-primary" id="saveEditBtn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backdrop -->
+    <div class="modal-backdrop hidden" id="modalBackdrop"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
