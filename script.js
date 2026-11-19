@@ -1,304 +1,337 @@
-/* ===========================
-   TASK MANAGER APPLICATION
-   Minimal, modern front-end task management
-   All data persisted to LocalStorage
-   =========================== */
+const CATEGORIES = [
+    'Food & drink',
+    'Transport',
+    'Shopping',
+    'Bills',
+    'Entertainment',
+    'Health',
+    'Home',
+    'Travel',
+    'Other'
+];
 
-class TaskManager {
+const CATEGORY_COLORS = {
+    'Food & drink': '#ef9d75',
+    Transport: '#6f9ee8',
+    Shopping: '#b28bdd',
+    Bills: '#e5bc59',
+    Entertainment: '#e77998',
+    Health: '#66b99a',
+    Home: '#8b9bcf',
+    Travel: '#53b5be',
+    Other: '#9aa5a1'
+};
+
+class ExpenseTracker {
     constructor() {
-        this.tasks = [];
-        this.currentFilter = 'all';
+        this.expenses = [];
+        this.currency = 'USD';
+        this.selectedMonth = this.getMonthKey(new Date());
         this.searchQuery = '';
-        this.editingTaskId = null;
-
+        this.selectedCategory = 'all';
         this.initElements();
-        this.loadTasks();
+        this.loadData();
+        this.setDefaultDate();
         this.attachEventListeners();
         this.render();
     }
 
     initElements() {
-        // Input elements
-        this.taskInput = document.getElementById('taskInput');
-        this.addBtn = document.getElementById('addBtn');
+        this.form = document.getElementById('expenseForm');
+        this.descriptionInput = document.getElementById('descriptionInput');
+        this.amountInput = document.getElementById('amountInput');
+        this.categoryInput = document.getElementById('categoryInput');
+        this.dateInput = document.getElementById('dateInput');
+        this.formMessage = document.getElementById('formMessage');
+        this.currencySelect = document.getElementById('currencySelect');
+        this.currencySymbol = document.getElementById('currencySymbol');
+        this.monthSelect = document.getElementById('monthSelect');
+        this.monthlyTotal = document.getElementById('monthlyTotal');
+        this.monthlyCaption = document.getElementById('monthlyCaption');
+        this.monthlyCount = document.getElementById('monthlyCount');
+        this.monthlyAverage = document.getElementById('monthlyAverage');
+        this.breakdownPeriod = document.getElementById('breakdownPeriod');
+        this.categoryBreakdown = document.getElementById('categoryBreakdown');
+        this.breakdownEmpty = document.getElementById('breakdownEmpty');
         this.searchInput = document.getElementById('searchInput');
-        
-        // Display elements
-        this.tasksList = document.getElementById('tasksList');
-        this.totalTasksSpan = document.getElementById('totalTasks');
-        this.completedTasksSpan = document.getElementById('completedTasks');
+        this.categoryFilterSelect = document.getElementById('categoryFilter');
+        this.transactionsList = document.getElementById('transactionsList');
         this.emptyState = document.getElementById('emptyState');
         this.noResults = document.getElementById('noResults');
-        
-        // Filter and action buttons
-        this.filterBtns = document.querySelectorAll('.filter-btn');
-        this.clearCompletedBtn = document.getElementById('clearCompletedBtn');
-        this.actionsSection = document.getElementById('actionsSection');
-        
-        // Modal elements
-        this.editModal = document.getElementById('editModal');
-        this.modalBackdrop = document.getElementById('modalBackdrop');
-        this.editInput = document.getElementById('editInput');
-        this.closeModalBtn = document.getElementById('closeModal');
-        this.cancelEditBtn = document.getElementById('cancelEditBtn');
-        this.saveEditBtn = document.getElementById('saveEditBtn');
     }
 
     attachEventListeners() {
-        // Add task
-        this.addBtn.addEventListener('click', () => this.handleAddTask());
-        this.taskInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.handleAddTask();
-        });
-
-        // Search
-        this.searchInput.addEventListener('input', (e) => {
-            this.searchQuery = e.target.value.toLowerCase();
+        this.form.addEventListener('submit', event => this.handleAddExpense(event));
+        this.currencySelect.addEventListener('change', () => {
+            this.currency = this.currencySelect.value;
+            this.saveData();
             this.render();
         });
-
-        // Filter
-        this.filterBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                this.filterBtns.forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                this.currentFilter = e.target.dataset.filter;
-                this.render();
-            });
+        this.monthSelect.addEventListener('change', () => {
+            this.selectedMonth = this.monthSelect.value;
+            this.render();
         });
-
-        // Clear completed
-        this.clearCompletedBtn.addEventListener('click', () => this.handleClearCompleted());
-
-        // Modal controls
-        this.closeModalBtn.addEventListener('click', () => this.closeModal());
-        this.cancelEditBtn.addEventListener('click', () => this.closeModal());
-        this.saveEditBtn.addEventListener('click', () => this.handleSaveEdit());
-        this.modalBackdrop.addEventListener('click', () => this.closeModal());
-        this.editInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.handleSaveEdit();
-            if (e.key === 'Escape') this.closeModal();
+        this.searchInput.addEventListener('input', () => {
+            this.searchQuery = this.searchInput.value.trim().toLowerCase();
+            this.renderTransactions();
+        });
+        this.categoryFilterSelect.addEventListener('change', () => {
+            this.selectedCategory = this.categoryFilterSelect.value;
+            this.renderTransactions();
+        });
+        this.transactionsList.addEventListener('click', event => {
+            const button = event.target.closest('[data-delete-id]');
+            if (button) this.handleDeleteExpense(button.dataset.deleteId);
         });
     }
 
-    /* ===== TASK OPERATIONS ===== */
-
-    handleAddTask() {
-        const title = this.taskInput.value.trim();
-        if (!title) return;
-
-        const task = {
-            id: Date.now(),
-            title,
-            completed: false,
-            createdAt: new Date().toLocaleString('en-US', { 
-                month: 'short', 
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            })
-        };
-
-        this.tasks.unshift(task);
-        this.saveTasks();
-        this.taskInput.value = '';
-        this.render();
+    setDefaultDate() {
+        const now = new Date();
+        this.dateInput.value = [
+            now.getFullYear(),
+            String(now.getMonth() + 1).padStart(2, '0'),
+            String(now.getDate()).padStart(2, '0')
+        ].join('-');
     }
 
-    handleDeleteTask(id) {
-        const item = document.querySelector(`[data-id="${id}"]`);
-        item.classList.add('removing');
-        
-        setTimeout(() => {
-            this.tasks = this.tasks.filter(task => task.id !== id);
-            this.saveTasks();
-            this.render();
-        }, 300);
-    }
-
-    handleToggleTask(id) {
-        const task = this.tasks.find(t => t.id === id);
-        if (task) {
-            task.completed = !task.completed;
-            this.saveTasks();
-            this.render();
+    loadData() {
+        try {
+            const savedExpenses = localStorage.getItem('expenses');
+            const savedCurrency = localStorage.getItem('expenseCurrency');
+            if (savedExpenses) {
+                const parsed = JSON.parse(savedExpenses);
+                if (!Array.isArray(parsed)) throw new Error('Saved expenses are not a list.');
+                this.expenses = parsed.filter(expense =>
+                    expense &&
+                    typeof expense.id === 'string' &&
+                    typeof expense.description === 'string' &&
+                    Number.isSafeInteger(expense.amountCents) &&
+                    expense.amountCents > 0 &&
+                    CATEGORIES.includes(expense.category) &&
+                    this.isValidDate(expense.date)
+                );
+            }
+            if (['USD', 'CAD', 'GBP', 'EUR', 'AUD'].includes(savedCurrency)) {
+                this.currency = savedCurrency;
+            }
+        } catch (error) {
+            console.error('Unable to load saved expenses:', error);
+            this.formMessage.textContent = 'Saved expenses could not be read. Add an expense to start a new list.';
         }
     }
 
-    handleEditTask(id) {
-        const task = this.tasks.find(t => t.id === id);
-        if (task) {
-            this.editingTaskId = id;
-            this.editInput.value = task.title;
-            this.openModal();
-            this.editInput.focus();
-            this.editInput.select();
+    saveData() {
+        try {
+            localStorage.setItem('expenses', JSON.stringify(this.expenses));
+            localStorage.setItem('expenseCurrency', this.currency);
+        } catch (error) {
+            console.error('Unable to save expense data:', error);
+            this.formMessage.textContent = 'Could not save your changes. Check that browser storage is available.';
         }
     }
 
-    handleSaveEdit() {
-        const newTitle = this.editInput.value.trim();
-        if (!newTitle) {
-            this.closeModal();
+    handleAddExpense(event) {
+        event.preventDefault();
+        this.formMessage.textContent = '';
+        const description = this.descriptionInput.value.trim();
+        const amount = Number(this.amountInput.value);
+        const amountCents = Math.round(amount * 100);
+        const category = this.categoryInput.value;
+        const date = this.dateInput.value;
+
+        if (!description || !Number.isFinite(amount) || amountCents <= 0 ||
+            amountCents > 10000000000 || !CATEGORIES.includes(category) || !this.isValidDate(date)) {
+            this.formMessage.textContent = 'Enter a description, a valid amount, category, and date.';
             return;
         }
 
-        const task = this.tasks.find(t => t.id === this.editingTaskId);
-        if (task) {
-            task.title = newTitle;
-            this.saveTasks();
-            this.render();
-        }
-
-        this.closeModal();
+        this.expenses.push({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+            description,
+            amountCents,
+            category,
+            date
+        });
+        this.selectedMonth = date.slice(0, 7);
+        this.searchQuery = '';
+        this.categoryFilterSelect.value = 'all';
+        this.selectedCategory = 'all';
+        this.searchInput.value = '';
+        this.form.reset();
+        this.setDefaultDate();
+        this.saveData();
+        this.render();
+        this.descriptionInput.focus();
     }
 
-    handleClearCompleted() {
-        this.tasks = this.tasks.filter(task => !task.completed);
-        this.saveTasks();
+    handleDeleteExpense(id) {
+        this.expenses = this.expenses.filter(expense => expense.id !== id);
+        this.saveData();
         this.render();
     }
 
-    /* ===== FILTERING & DISPLAY ===== */
-
-    getFilteredTasks() {
-        let filtered = this.tasks;
-
-        // Apply filter
-        if (this.currentFilter === 'active') {
-            filtered = filtered.filter(task => !task.completed);
-        } else if (this.currentFilter === 'completed') {
-            filtered = filtered.filter(task => task.completed);
-        }
-
-        // Apply search
-        if (this.searchQuery) {
-            filtered = filtered.filter(task =>
-                task.title.toLowerCase().includes(this.searchQuery)
-            );
-        }
-
-        return filtered;
+    getMonthKey(date) {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     }
 
-    updateStats() {
-        const totalTasks = this.tasks.length;
-        const completedTasks = this.tasks.filter(t => t.completed).length;
+    isValidDate(value) {
+        if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+        const [year, month, day] = value.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+    }
 
-        this.totalTasksSpan.textContent = totalTasks;
-        this.completedTasksSpan.textContent = completedTasks;
+    formatCurrency(amountCents) {
+        return new Intl.NumberFormat(undefined, {
+            style: 'currency',
+            currency: this.currency
+        }).format(amountCents / 100);
+    }
 
-        // Show/hide clear completed button
-        if (completedTasks > 0) {
-            this.actionsSection.classList.remove('hidden');
-        } else {
-            this.actionsSection.classList.add('hidden');
-        }
+    formatMonth(monthKey) {
+        const [year, month] = monthKey.split('-').map(Number);
+        return new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' })
+            .format(new Date(year, month - 1, 1));
+    }
+
+    formatDate(dateString) {
+        const [year, month, day] = dateString.split('-').map(Number);
+        return new Intl.DateTimeFormat(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        }).format(new Date(year, month - 1, day));
+    }
+
+    getSelectedExpenses() {
+        return this.expenses.filter(expense => expense.date.slice(0, 7) === this.selectedMonth);
     }
 
     render() {
-        const filteredTasks = this.getFilteredTasks();
+        this.currencySelect.value = this.currency;
+        this.currencySymbol.textContent = new Intl.NumberFormat(undefined, {
+            style: 'currency',
+            currency: this.currency
+        }).formatToParts(0).find(part => part.type === 'currency').value;
+        this.renderMonthOptions();
+        this.renderSummary();
+        this.renderBreakdown();
+        this.renderTransactions();
+    }
 
-        // Update stats
-        this.updateStats();
+    renderMonthOptions() {
+        const months = new Set([this.getMonthKey(new Date()), ...this.expenses.map(expense => expense.date.slice(0, 7))]);
+        const sortedMonths = Array.from(months).sort().reverse();
+        this.monthSelect.replaceChildren();
+        sortedMonths.forEach(month => {
+            const option = document.createElement('option');
+            option.value = month;
+            option.textContent = this.formatMonth(month);
+            this.monthSelect.appendChild(option);
+        });
+        if (!months.has(this.selectedMonth)) this.selectedMonth = sortedMonths[0];
+        this.monthSelect.value = this.selectedMonth;
+    }
 
-        // Clear list
-        this.tasksList.innerHTML = '';
+    renderSummary() {
+        const expenses = this.getSelectedExpenses();
+        const total = expenses.reduce((sum, expense) => sum + expense.amountCents, 0);
+        this.monthlyTotal.textContent = this.formatCurrency(total);
+        this.monthlyCount.textContent = expenses.length.toLocaleString();
+        this.monthlyAverage.textContent = this.formatCurrency(
+            expenses.length ? Math.round(total / expenses.length) : 0
+        );
+        this.monthlyCaption.textContent = expenses.length
+            ? `${expenses.length} expense${expenses.length === 1 ? '' : 's'} recorded`
+            : `No expenses recorded in ${this.formatMonth(this.selectedMonth)}`;
+        this.breakdownPeriod.textContent = this.formatMonth(this.selectedMonth);
+    }
 
-        // Show appropriate empty state
-        if (this.tasks.length === 0) {
-            this.emptyState.classList.remove('hidden');
-            this.noResults.classList.add('hidden');
-            return;
-        }
+    renderBreakdown() {
+        const totals = new Map();
+        this.getSelectedExpenses().forEach(expense => {
+            totals.set(expense.category, (totals.get(expense.category) || 0) + expense.amountCents);
+        });
+        const entries = Array.from(totals.entries()).sort((a, b) => b[1] - a[1]);
+        const maxAmount = entries.length ? entries[0][1] : 0;
+        this.categoryBreakdown.replaceChildren();
+        this.breakdownEmpty.classList.toggle('hidden', entries.length > 0);
 
-        if (filteredTasks.length === 0) {
-            this.emptyState.classList.add('hidden');
-            this.noResults.classList.remove('hidden');
-            return;
-        }
-
-        this.emptyState.classList.add('hidden');
-        this.noResults.classList.add('hidden');
-
-        // Render tasks
-        filteredTasks.forEach(task => {
-            const li = document.createElement('li');
-            li.className = `task-item ${task.completed ? 'completed' : ''}`;
-            li.dataset.id = task.id;
-
-            li.innerHTML = `
-                <input 
-                    type="checkbox" 
-                    class="task-checkbox" 
-                    ${task.completed ? 'checked' : ''}
-                    aria-label="Toggle task completion"
-                >
-                <div class="task-content">
-                    <div class="task-text">${this.escapeHtml(task.title)}</div>
-                    <div class="task-meta">${task.createdAt}</div>
-                </div>
-                <div class="task-actions">
-                    <button class="task-btn edit" title="Edit task" aria-label="Edit task">✏️</button>
-                    <button class="task-btn delete" title="Delete task" aria-label="Delete task">🗑️</button>
-                </div>
-            `;
-
-            // Attach event listeners
-            const checkbox = li.querySelector('.task-checkbox');
-            const editBtn = li.querySelector('.task-btn.edit');
-            const deleteBtn = li.querySelector('.task-btn.delete');
-
-            checkbox.addEventListener('change', () => this.handleToggleTask(task.id));
-            editBtn.addEventListener('click', () => this.handleEditTask(task.id));
-            deleteBtn.addEventListener('click', () => this.handleDeleteTask(task.id));
-
-            this.tasksList.appendChild(li);
+        entries.forEach(([category, amount]) => {
+            const row = document.createElement('div');
+            row.className = 'category-row';
+            const label = document.createElement('div');
+            label.className = 'category-label';
+            const dot = document.createElement('span');
+            dot.className = 'category-dot';
+            dot.style.backgroundColor = CATEGORY_COLORS[category];
+            const name = document.createElement('span');
+            name.textContent = category;
+            const value = document.createElement('span');
+            value.className = 'category-amount';
+            value.textContent = this.formatCurrency(amount);
+            label.append(dot, name, value);
+            const track = document.createElement('div');
+            track.className = 'bar-track';
+            const bar = document.createElement('div');
+            bar.className = 'bar-fill';
+            bar.style.width = `${Math.max(4, (amount / maxAmount) * 100)}%`;
+            bar.style.backgroundColor = CATEGORY_COLORS[category];
+            track.appendChild(bar);
+            row.append(label, track);
+            this.categoryBreakdown.appendChild(row);
         });
     }
 
-    /* ===== MODAL MANAGEMENT ===== */
+    renderTransactions() {
+        const expenses = this.getSelectedExpenses()
+            .filter(expense => expense.description.toLowerCase().includes(this.searchQuery))
+            .filter(expense => this.selectedCategory === 'all' || expense.category === this.selectedCategory)
+            .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+        this.transactionsList.replaceChildren();
+        const hasMonthExpenses = this.getSelectedExpenses().length > 0;
+        this.emptyState.classList.toggle('hidden', hasMonthExpenses);
+        this.noResults.classList.toggle('hidden', !hasMonthExpenses || expenses.length > 0);
 
-    openModal() {
-        this.editModal.classList.remove('hidden');
-        this.modalBackdrop.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-    }
+        expenses.forEach(expense => {
+            const row = document.createElement('tr');
+            const descriptionCell = document.createElement('td');
+            descriptionCell.className = 'description-cell';
+            const description = document.createElement('span');
+            description.className = 'transaction-name';
+            description.textContent = expense.description;
+            descriptionCell.appendChild(description);
 
-    closeModal() {
-        this.editModal.classList.add('hidden');
-        this.modalBackdrop.classList.add('hidden');
-        document.body.style.overflow = '';
-        this.editingTaskId = null;
-        this.editInput.value = '';
-    }
+            const categoryCell = document.createElement('td');
+            const badge = document.createElement('span');
+            badge.className = 'category-badge';
+            badge.style.setProperty('--category-color', CATEGORY_COLORS[expense.category]);
+            badge.textContent = expense.category;
+            categoryCell.appendChild(badge);
 
-    /* ===== STORAGE MANAGEMENT ===== */
+            const dateCell = document.createElement('td');
+            dateCell.className = 'date-cell';
+            dateCell.textContent = this.formatDate(expense.date);
 
-    saveTasks() {
-        localStorage.setItem('tasks', JSON.stringify(this.tasks));
-    }
+            const amountCell = document.createElement('td');
+            amountCell.className = 'amount-column transaction-amount';
+            amountCell.textContent = `−${this.formatCurrency(expense.amountCents)}`;
 
-    loadTasks() {
-        const saved = localStorage.getItem('tasks');
-        this.tasks = saved ? JSON.parse(saved) : [];
-    }
+            const actionCell = document.createElement('td');
+            actionCell.className = 'action-column';
+            const deleteButton = document.createElement('button');
+            deleteButton.type = 'button';
+            deleteButton.className = 'delete-button';
+            deleteButton.dataset.deleteId = expense.id;
+            deleteButton.setAttribute('aria-label', `Delete ${expense.description}`);
+            deleteButton.title = 'Delete expense';
+            deleteButton.textContent = '×';
+            actionCell.appendChild(deleteButton);
 
-    /* ===== UTILITIES ===== */
-
-    escapeHtml(text) {
-        const map = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#039;'
-        };
-        return text.replace(/[&<>"']/g, m => map[m]);
+            row.append(descriptionCell, categoryCell, dateCell, amountCell, actionCell);
+            this.transactionsList.appendChild(row);
+        });
     }
 }
 
-/* Initialize app when DOM is ready */
-document.addEventListener('DOMContentLoaded', () => {
-    new TaskManager();
-});
+document.addEventListener('DOMContentLoaded', () => new ExpenseTracker());
